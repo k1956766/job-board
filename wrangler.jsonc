@@ -10,5 +10,6 @@
   "kv_namespaces": [
     { "binding": "JOBS", "id": "543e53b3a16847f5b5b1d4b796768294" }
   ],
+  "vars": { "GH_REPO": "k1956766/job-board", "GH_BRANCH": "main" },
   "observability": { "enabled": false }
 }
