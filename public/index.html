@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>관심 채용공고</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#2f6b4f">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="view.css">
+</head><body><div class="wrap">
+<div id="offline" class="offline" hidden></div>
+<header>
+  <div class="hrow">
+    <h1>관심 채용공고</h1>
+    <div class="hbtns">
+      <button id="hiddenBtn" class="btn ghost small">숨긴 기업 <span id="hiddenN">0</span></button>
+      <button id="collect" class="btn small">지금 수집</button>
+    </div>
+  </div>
+  <p id="upd" class="sub"></p>
+  <div id="status" class="sub"></div>
+  <div id="progress" class="progress" hidden></div>
+
+  <section id="hiddenPanel" class="panel" hidden>
+    <div class="panel-head">
+      <strong>숨긴 기업·기관</strong>
+      <span class="sub">기업명을 누르면 숨길 수 있습니다. 기간이 지나면 자동으로 다시 보입니다.</span>
+    </div>
+    <div id="hiddenList"></div>
+  </section>
+</header>
+
+<nav class="tabs" id="tabs">
+  <button data-tab="all" class="on">전체 <span id="nAll"></span></button>
+  <button data-tab="fav">☆ 찜 <span id="nFav"></span></button>
+  <button data-tab="maybe">찜 일수도 <span id="nMaybe"></span></button>
+</nav>
+
+<div class="controls">
+  <div class="row">
+    <input type="search" id="q" placeholder="회사명·제목·모집 분야 검색">
+    <select id="sort">
+      <option value="deadline">마감 임박순</option>
+      <option value="new">새로 올라온 순</option>
+      <option value="big">큰 회사·주요 기관 먼저</option>
+    </select>
+    <span class="count" id="count"></span>
+    <button id="toggleFilters" class="btn ghost small" aria-expanded="true">필터 숨기기 ▲</button>
+  </div>
+  <div id="filterSummary" class="sub" hidden></div>
+  <div id="filters">
+    <div class="row"><span class="lbl">분야</span><span id="cats" class="row inline"></span></div>
+    <div class="row">
+      <span class="lbl">구분</span>
+      <button class="chip" id="onlyNew">NEW만</button>
+      <span class="sep"></span>
+      <button class="chip" data-org="public">공공기관만</button>
+      <button class="chip" data-org="private">민간기업만</button>
+      <button class="chip" data-org="research">공공 연구기관만</button>
+    </div>
+    <div class="row" id="rgRow" hidden><span class="lbl">연구기관</span><span id="rgroups" class="row inline"></span></div>
+    <div class="row">
+      <span class="lbl">조건</span>
+      <button class="chip" id="master">석사 우대·이상</button>
+      <button class="chip" id="noForeign">외국계 제외</button>
+      <button class="chip" id="hideSimple">간단한 공고 숨기기</button>
+    </div>
+    <div class="row"><span class="lbl">지역</span><span id="regions" class="row inline"></span></div>
+    <div class="row"><span class="lbl">사이트</span><span id="srcs" class="row inline"></span></div>
+  </div>
+</div>
+
+<div id="list"></div>
+<div id="more" class="more" hidden><button class="btn ghost small" id="moreBtn">더 보기</button></div>
+
+<details id="settings">
+  <summary>설정</summary>
+  <div class="setgrid">
+    <label class="sub" for="interval">자동 수집 간격</label>
+    <select id="interval">
+      <option value="1">1시간마다</option>
+      <option value="3">3시간마다</option>
+      <option value="6">6시간마다</option>
+      <option value="12">12시간마다</option>
+      <option value="24">하루 한 번</option>
+    </select>
+    <label class="sub" for="hideCareer3">경력 조건</label>
+    <label class="chk"><input type="checkbox" id="hideCareer3"> 경력 3년 이상만 받는 공고는 숨기기</label>
+    <label class="sub" for="simpleMin">간단한 공고 기준</label>
+    <span><input type="number" id="simpleMin" min="50" max="1000" step="10" class="num"> <span class="sub">글자 미만 (본문 사진이 2장 이상이면 제외)</span></span>
+  </div>
+  <p class="sub" style="margin-top:12px">수집할 사이트</p>
+  <div class="row" id="srcSet"></div>
+  <p class="sub" style="margin-top:12px">한 줄에 한 분야씩, <code>분야명: 검색어, 검색어, …</code> 형식으로 적으세요. 저장하면 다음 수집부터 적용됩니다.</p>
+  <textarea id="catsText" rows="12" spellcheck="false"></textarea>
+  <label class="sub" for="exText">제외할 단어 (제목에 들어 있으면 수집하지 않음, 쉼표로 구분)</label>
+  <input type="text" id="exText">
+  <div class="row">
+    <button class="btn" id="save">저장</button>
+    <button class="btn ghost" id="reset">기본값으로</button>
+    <span id="saved" class="sub"></span>
+  </div>
+</details>
+</div>
+
+<div id="coMenu" class="menu" hidden>
+  <div class="menu-title" id="coMenuName"></div>
+  <button data-days="7">7일 동안 숨기기</button>
+  <button data-days="30">1달 동안 숨기기</button>
+  <button data-days="0">계속 숨기기</button>
+</div>
+
+<div id="modal" class="modal" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <div class="modal-head">
+      <div class="mh-text">
+        <div class="co" id="mCo"></div>
+        <h2 id="mTitle"></h2>
+      </div>
+      <button class="star big" id="mFav" aria-label="찜">☆</button>
+      <button class="x" id="mClose" aria-label="닫기">✕</button>
+    </div>
+    <dl class="facts" id="mFacts"></dl>
+    <div class="mtabs">
+      <span class="sub">원문</span>
+      <span id="mTabs"></span>
+      <a id="mOpen" class="btn ghost small" target="_blank" rel="noopener">새 탭에서 열기 ↗</a>
+    </div>
+    <div class="frame-wrap">
+      <iframe id="mFrame" title="공고 원문" sandbox="allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer"></iframe>
+      <div id="mNoFrame" class="noframe" hidden></div>
+    </div>
+  </div>
+</div>
+<div id="toast" class="toast" hidden></div>
+<script type="module" src="view.js"></script>
+</body></html>

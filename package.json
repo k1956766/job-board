@@ -1,0 +1,14 @@
+{
+  "name": "job-board",
+  "private": true,
+  "type": "module",
+  "description": "개인용 관심 채용공고 모음 (Cloudflare Pages + GitHub Actions)",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "collect": "node collector/run.js",
+    "collect:now": "node collector/run.js --force"
+  },
+  "dependencies": {
+    "linkedom": "0.18.12"
+  }
+}
