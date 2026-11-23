@@ -1,0 +1,14 @@
+{
+  "name": "job-board",
+  "main": "worker.js",
+  "compatibility_date": "2026-06-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+  "kv_namespaces": [
+    { "binding": "JOBS", "id": "KV_NAMESPACE_ID_HERE" }
+  ],
+  "observability": { "enabled": false }
+}
