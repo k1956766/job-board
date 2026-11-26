@@ -3,50 +3,53 @@
 사람인·잡코리아·인크루트·자소설닷컴·캐치·링커리어·잡알리오·클린아이·하이브레인넷에서 관심 분야 공고를 모아 한 화면에 보여 주는 개인용 사이트입니다.
 
 - **GitHub Actions**: 정해진 간격마다 공고를 수집해 Cloudflare 저장소(KV)에 넣습니다. (`collector/`)
-- **Cloudflare Pages**: 사이트 화면과 API를 제공하고, Cloudflare Access로 본인만 들어갈 수 있게 잠급니다. (`public/`, `functions/`)
+- **Cloudflare Workers**: 사이트 화면과 API를 제공하고, Cloudflare Access로 본인만 들어갈 수 있게 잠급니다. (`worker.js`, `wrangler.jsonc`, `public/`, `functions/`)
 - 찜·숨긴 기업·설정은 Cloudflare KV에만 저장됩니다. 이 저장소(공개)에는 코드만 있습니다.
+- 지금 운영 주소: https://job-board.k1956766.workers.dev/ (이메일 일회용 번호로 로그인)
+- 이 저장소에 올리면(main) Cloudflare가 자동으로 다시 배포합니다 (Workers Builds).
 
 ## 처음 설정
 
 ### 1. Cloudflare 저장소(KV) 만들기
-Cloudflare 대시보드 → **Storage & Databases → Workers KV** → **Create** → 이름 `job-board` → 만든 뒤 **Namespace ID**를 복사해 둡니다.
+Cloudflare 대시보드 → **Storage & Databases → Workers KV** → **Create** → 이름 `job-board` → 만든 뒤 **ID**를 복사해 둡니다.
+그 ID를 [`wrangler.jsonc`](wrangler.jsonc)의 `kv_namespaces` → `id`에 넣고 이 저장소에 올립니다. (사이트와 저장 공간의 연결은 이 설정 파일이 합니다. 대시보드에서 따로 연결하지 않습니다.)
 
-### 2. Cloudflare Pages 사이트 만들기
-1. **Workers & Pages → Create → Pages → Connect to Git** → 이 저장소 선택
-2. 빌드 설정: Framework preset **None**, Build command **비움**, Build output directory **`public`** → Save and Deploy
-3. 만든 프로젝트 → **Settings → Bindings → Add → KV namespace**
-   변수 이름 **`JOBS`**, 네임스페이스 `job-board` 선택 → 저장 후 **Deployments**에서 최신 배포를 **Retry deployment** (바인딩은 다시 배포해야 적용)
+### 2. 사이트(Workers) 만들고 잠그기
+1. **Workers & Pages → Create application → Import a repository** → 이 저장소 선택
+2. 설정
+   - Project name: `job-board` (`wrangler.jsonc`의 `name`과 같아야 합니다)
+   - Build command: **비움**
+   - Deploy command: `npx wrangler deploy` (기본값 그대로)
+   - **Protect with Cloudflare Access: 켜기** — 이게 사이트 잠금입니다. 로그인은 이메일로 받은 일회용 번호(One-time PIN)
+3. **Deploy** → `job-board.<계정>.workers.dev` 주소가 생깁니다. 시크릿 창으로 열어 이메일을 묻는 화면이 나오면 잠금이 된 것입니다.
+4. (선택, 이중 잠금) Workers → job-board → **Settings → Variables and Secrets**에 `ALLOWED_EMAILS` = 본인 이메일을 **Secret**으로 추가
 
-### 3. 사이트 잠그기 (Cloudflare Access)
-1. Pages 프로젝트 → **Settings → General → Access policy → Enable**
-2. **Manage** → Zero Trust 화면에서 이 앱의 **Configure**
-   - **Policies**: Action *Allow*, Include **Emails** = 본인 이메일
-   - **Overview(도메인)**: 목록의 `*.프로젝트.pages.dev` 처럼 맨 앞이 `*`인 주소의 `*`를 지워 `프로젝트.pages.dev` 자체도 잠기게 저장
-     (기본값은 미리보기 주소만 잠그고 실제 주소는 열려 있습니다. 미리보기 주소도 잠그려면 같은 정책으로 `*` 항목을 하나 더 추가)
-3. 로그인 방법은 기본값 **One-time PIN**(이메일로 받은 번호 입력)이면 됩니다.
-4. (선택, 이중 잠금) Pages → Settings → **Variables and Secrets**에 `ALLOWED_EMAILS` = 본인 이메일 추가 → 다시 배포
+> 화면 설정에서 일반 값(Text)으로 넣은 변수는 다음 배포 때 `wrangler.jsonc` 내용으로 덮어써져 사라집니다. 바뀌면 안 되는 값은 **Secret**으로 넣거나 `wrangler.jsonc`의 `vars`에 적습니다.
 
-### 4. 수집기에 쓸 Cloudflare API 토큰
+### 3. 수집기에 쓸 Cloudflare API 토큰
 1. 오른쪽 위 프로필 → **My Profile → API Tokens → Create Token → Custom token**
 2. Permissions: **Account → Workers KV Storage → Edit**, Account Resources: 본인 계정 → 만들기 → 토큰 복사
 3. **Account ID**: Workers & Pages 첫 화면 오른쪽(또는 대시보드 주소의 숫자·영문 32자리)
 
-### 5. GitHub에 비밀값 넣기
+### 4. GitHub에 비밀값 넣기
 이 저장소 → **Settings → Secrets and variables → Actions → New repository secret** 으로 세 개:
 
 | 이름 | 값 |
 |---|---|
 | `CF_ACCOUNT_ID` | Cloudflare Account ID |
-| `CF_API_TOKEN` | 4번에서 만든 토큰 |
-| `KV_NAMESPACE_ID` | 1번 Namespace ID |
+| `CF_API_TOKEN` | 3번에서 만든 토큰 |
+| `KV_NAMESPACE_ID` | 1번 KV ID |
 
 그다음 **Actions → collect → Run workflow** 로 첫 수집을 실행합니다 (10~20분).
 이후에는 매시 17분에 깨어나서, 사이트 설정의 수집 간격(기본 6시간)이 됐을 때만 수집합니다.
 
-### 6. (선택) "지금 수집" 버튼으로 바로 실행
+### 5. (선택) "지금 수집" 버튼으로 바로 실행
 버튼은 기본적으로 *다음 정기 실행(최대 1시간 안)에 수집*하도록 요청만 남깁니다. 누르는 즉시 시작하게 하려면:
 1. GitHub → Settings → Developer settings → **Fine-grained tokens** → 이 저장소만, **Actions: Read and write** 권한으로 생성
-2. Cloudflare Pages → Settings → Variables and Secrets: `GH_TOKEN`(Secret) = 그 토큰, `GH_REPO` = `계정/저장소이름` → 다시 배포
+2. Cloudflare → Workers & Pages → job-board → **Settings → Variables and Secrets → Add**: `GH_TOKEN` = 그 토큰, 반드시 **Secret**으로
+3. 저장소 이름·브랜치는 `wrangler.jsonc`의 `vars`(`GH_REPO`, `GH_BRANCH`)에 이미 들어 있습니다. 저장소 이름을 바꾸면 여기도 고칩니다.
+
+사이트에서 **지금 수집**을 눌러 "수집을 시작했습니다"가 뜨면 성공입니다. 토큰이 만료되면 버튼만 다음 정기 실행으로 돌아가고 자동 수집은 계속됩니다. (지금 토큰 만료일: 2027-02-22)
 
 ## 일부 사이트가 GitHub에서 막힐 때 (집 PC 보조 수집)
 GitHub Actions는 해외(미국) 서버에서 실행돼서, 일부 국내 사이트가 접속을 막을 수 있습니다 (사이트 상태줄에 "실패"로 표시).
@@ -63,6 +66,8 @@ GitHub Actions는 해외(미국) 서버에서 실행돼서, 일부 국내 사이
 
 ## 파일 구성
 - `public/` 화면 (index.html, view.js, view.css) + 공통 로직 (lib.js 목록 해석·묶기, orgs.js 기관 분류, similar.js 찜 일수도)
+- `worker.js` Workers 진입점 (`/api/*`는 API로, 나머지는 `public/` 화면 파일로)
+- `wrangler.jsonc` Workers 설정 (KV 연결 `JOBS`, 저장소 이름 `GH_REPO`)
 - `functions/api/[[path]].js` 사이트 API (KV 읽기·쓰기, 원문 중계)
 - `collector/` 수집기 (run.js 실행, sites.js 사이트별 수집, kv.js 저장)
 - `.github/workflows/collect.yml` 정기 실행
