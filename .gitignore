@@ -5,3 +5,4 @@ node_modules/
 home-pc/home.env
 home-pc/collect.log
 home-pc/jasoseol.json
+home-pc/jasoseol.last-good.json

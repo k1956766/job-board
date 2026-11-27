@@ -1,6 +1,6 @@
 // 사이트별 수집 (사이트끼리는 동시에, 같은 사이트 안에서는 1.2~2.5초 간격으로 천천히)
 import { parseHTML } from "linkedom";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { copyFileSync, existsSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
   makeJob, toKstDate, parseIncruit, parseSaramin, parseJobkorea, parseAlio, parseHibrain, linkareerJob, cleaneyeJob,
@@ -152,19 +152,47 @@ const fetchCatch = ({ terms, progress }) => bySearch({
 });
 
 // 자소설닷컴은 프로그램 접속을 막아서(Cloudflare 403), 브라우저로 받아 둔 파일이 있으면 그걸 읽음
-//   파일: home-pc/jasoseol.json (또는 JASOSEOL_FILE) = { savedAt, dutyNames, employment: [...] }
+//   파일: home-pc/jasoseol.json (또는 JASOSEOL_FILE) — 형식은 home-pc/jasoseol-browser.js 참고
+//   제대로 읽힌 파일은 jasoseol.last-good.json 으로 복사해 두고, 새 파일이 깨졌으면 그걸 대신 씀
 const JASOSEOL_FILE = process.env.JASOSEOL_FILE || fileURLToPath(new URL("../home-pc/jasoseol.json", import.meta.url));
+const JASOSEOL_GOOD = JASOSEOL_FILE.replace(/(\.json)?$/, ".last-good.json");
 const JASOSEOL_FILE_MAX_DAYS = 4;   // 이보다 오래된 파일은 쓰지 않음 (주말·연휴 고려)
+
+// 받아 둔 파일을 읽고 검사. 깨졌으면 이유를 담은 오류를 던짐
+export function readJasoseolFile(file) {
+  let data;
+  try { data = JSON.parse(readFileSync(file, "utf8")); } catch (e) { throw new Error(`JSON이 아님 (${String(e?.message || e).slice(0, 60)})`); }
+  if (!data || typeof data !== "object") throw new Error("내용이 비어 있음");
+  if (data.error) throw new Error(`브라우저 오류: ${data.error}`);
+  const savedAt = Date.parse(data.savedAt || "") || statSync(file).mtimeMs;
+  if (data.v === 2) {
+    if (!Array.isArray(data.items)) throw new Error("items 없음");
+    if (typeof data.count === "number" && data.count !== data.items.length) throw new Error(`공고 수 불일치 (${data.items.length}/${data.count}, 잘렸을 수 있음)`);
+    if (data.items.some((x) => !x || x.i == null || !x.n)) throw new Error("공고 항목이 깨져 있음");
+    if (data.total === 0) throw new Error("달력 전체가 0건 (받기 실패로 보임)");
+  } else if (!Array.isArray(data.employment)) throw new Error("알 수 없는 형식");
+  return { data, savedAt };
+}
 
 async function fetchJasoseol({ match, progress }) {
   let dutyNames = {};
-  let data;
-  if (existsSync(JASOSEOL_FILE)) {
+  let data, dataAt, warn;
+  if (existsSync(JASOSEOL_FILE) || existsSync(JASOSEOL_GOOD)) {
     progress("브라우저로 받아 둔 파일 읽는 중");
-    data = JSON.parse(readFileSync(JASOSEOL_FILE, "utf8"));
-    const savedAt = Date.parse(data.savedAt || "") || statSync(JASOSEOL_FILE).mtimeMs;
-    const days = (Date.now() - savedAt) / 86400000;
-    if (days > JASOSEOL_FILE_MAX_DAYS) throw new Error(`받아 둔 파일이 오래됨 (${Math.floor(days)}일 전)`);
+    const tryRead = (f) => { try { return existsSync(f) ? readJasoseolFile(f) : { err: "파일 없음" }; } catch (e) { return { err: e.message }; } };
+    const cur = tryRead(JASOSEOL_FILE), good = tryRead(JASOSEOL_GOOD);
+    let got;
+    if (cur.data && !(good.data && good.savedAt > cur.savedAt)) {
+      got = cur;
+      copyFileSync(JASOSEOL_FILE, JASOSEOL_GOOD);   // 정상 파일 보관
+    } else if (good.data) {
+      got = good;
+      warn = cur.data ? "새 파일이 보관본보다 오래돼 보관본 사용" : `새 파일이 깨져 이전 파일 사용: ${cur.err}`;
+    } else throw new Error(`받아 둔 파일이 깨짐: ${cur.err}`);
+    data = got.data;
+    dataAt = got.savedAt;
+    const days = (Date.now() - dataAt) / 86400000;
+    if (days > JASOSEOL_FILE_MAX_DAYS) throw new Error(`받아 둔 파일이 오래됨 (${Math.floor(days)}일 전)${warn ? ` · ${warn}` : ""}`);
     dutyNames = data.dutyNames || {};
     if (data.v === 2) {   // 짧은 형식 → 아래 처리와 같은 모양으로
       data = { employment: (data.items || []).map((x) => ({
@@ -206,6 +234,8 @@ async function fetchJasoseol({ match, progress }) {
       foreign: /외국계|foreign/i.test(bs + bt), isPublic: /공기업|공공|public/i.test(bs + bt),
     }));
   }
+  // 받아 둔 파일을 쓴 경우: 자료 시점과 경고를 상태줄에 표시하도록 넘김
+  if (dataAt) out.meta = { dataAt, ...(warn ? { warn } : {}) };
   return out;
 }
 
