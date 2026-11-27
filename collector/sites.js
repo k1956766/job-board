@@ -1,5 +1,7 @@
 // 사이트별 수집 (사이트끼리는 동시에, 같은 사이트 안에서는 1.2~2.5초 간격으로 천천히)
 import { parseHTML } from "linkedom";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import {
   makeJob, toKstDate, parseIncruit, parseSaramin, parseJobkorea, parseAlio, parseHibrain, linkareerJob, cleaneyeJob,
   JASOSEOL_DUTY_GROUPS, MAX_PAGES, JASOSEOL_DAYS_AHEAD, kstToday, bodyUrl,
@@ -149,20 +151,42 @@ const fetchCatch = ({ terms, progress }) => bySearch({
   },
 });
 
+// 자소설닷컴은 프로그램 접속을 막아서(Cloudflare 403), 브라우저로 받아 둔 파일이 있으면 그걸 읽음
+//   파일: home-pc/jasoseol.json (또는 JASOSEOL_FILE) = { savedAt, dutyNames, employment: [...] }
+const JASOSEOL_FILE = process.env.JASOSEOL_FILE || fileURLToPath(new URL("../home-pc/jasoseol.json", import.meta.url));
+const JASOSEOL_FILE_MAX_DAYS = 4;   // 이보다 오래된 파일은 쓰지 않음 (주말·연휴 고려)
+
 async function fetchJasoseol({ match, progress }) {
-  progress("채용 일정 불러오는 중");
   let dutyNames = {};
-  try {
-    const list = await (await siteFetch("https://jasoseol.com/api/v1/duty-groups", { headers: { Accept: "application/json" } })).json();
-    dutyNames = Object.fromEntries(list.map((d) => [d.id, d.name]));
-  } catch { /* 직무명은 없어도 수집 가능 */ }
-  await pause();
-  const day = (offset) => new Date(Date.now() + 9 * 3600000 + offset * 86400000).toISOString().slice(0, 10);
-  const data = await (await siteFetch("https://jasoseol.com/employment/calendar_list.json", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ start_time: `${day(0)}T00:00:00+09:00`, end_time: `${day(JASOSEOL_DAYS_AHEAD)}T23:59:59+09:00` }),
-  })).json();
+  let data;
+  if (existsSync(JASOSEOL_FILE)) {
+    progress("브라우저로 받아 둔 파일 읽는 중");
+    data = JSON.parse(readFileSync(JASOSEOL_FILE, "utf8"));
+    const savedAt = Date.parse(data.savedAt || "") || statSync(JASOSEOL_FILE).mtimeMs;
+    const days = (Date.now() - savedAt) / 86400000;
+    if (days > JASOSEOL_FILE_MAX_DAYS) throw new Error(`받아 둔 파일이 오래됨 (${Math.floor(days)}일 전)`);
+    dutyNames = data.dutyNames || {};
+    if (data.v === 2) {   // 짧은 형식 → 아래 처리와 같은 모양으로
+      data = { employment: (data.items || []).map((x) => ({
+        id: x.i, name: x.n, title: x.t, end_time: x.e, field: x.f,
+        company_group: { business_size: x.s, business_type: x.b },
+        employments: [{ duty_groups: (x.g || []).map((group_id) => ({ group_id })) }],
+      })) };
+    }
+  } else {
+    progress("채용 일정 불러오는 중");
+    try {
+      const list = await (await siteFetch("https://jasoseol.com/api/v1/duty-groups", { headers: { Accept: "application/json" } })).json();
+      dutyNames = Object.fromEntries(list.map((d) => [d.id, d.name]));
+    } catch { /* 직무명은 없어도 수집 가능 */ }
+    await pause();
+    const day = (offset) => new Date(Date.now() + 9 * 3600000 + offset * 86400000).toISOString().slice(0, 10);
+    data = await (await siteFetch("https://jasoseol.com/employment/calendar_list.json", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ start_time: `${day(0)}T00:00:00+09:00`, end_time: `${day(JASOSEOL_DAYS_AHEAD)}T23:59:59+09:00` }),
+    })).json();
+  }
   const now = Date.now();
   const out = [];
   for (const e of data.employment || []) {
@@ -176,9 +200,9 @@ async function fetchJasoseol({ match, progress }) {
     out.push(makeJob({
       source: "자소설닷컴", id: e.id, company: e.name, title: e.title,
       url: `https://jasoseol.com/recruit/${e.id}`, deadline: toKstDate(e.end_time),
-      field: [...new Set([...groups].map((g) => dutyNames[g]).filter(Boolean))].sort().join(", "),
+      field: e.field || [...new Set([...groups].map((g) => dutyNames[g]).filter(Boolean))].sort().join(", "),
       categories: [...cats],
-      size: /대기업|공기업|large/i.test(bs + bt) ? 3 : /중견|middle/i.test(bs) ? 2 : 0,
+      size: /대기업|공기업|large|big/i.test(bs + bt) ? 3 : /중견|middle/i.test(bs) ? 2 : 0,
       foreign: /외국계|foreign/i.test(bs + bt), isPublic: /공기업|공공|public/i.test(bs + bt),
     }));
   }

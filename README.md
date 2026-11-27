@@ -60,6 +60,17 @@ GitHub Actions는 해외(미국) 서버에서 실행돼서, 일부 국내 사이
 3. `home-pc\install.bat` 실행 → 메모장이 열리면 Cloudflare 값 세 개와 `ONLY_SOURCES`(집 PC가 맡을 사이트)를 채우고 저장
 4. 끄려면 `home-pc\uninstall.bat`
 
+### 자소설닷컴 (브라우저로 받아 두기)
+자소설닷컴은 프로그램 접속을 Cloudflare 봇 차단으로 막아서(국내 IP에서도 403) 수집기가 직접 받지 못합니다.
+대신 사람이 쓰는 크롬에서 채용 달력을 열고 받아 둔 파일을 집 PC 수집기가 읽습니다.
+
+1. `node --env-file=home-pc\home.env home-pc\jasoseol-terms.mjs` → 현재 검색어가 들어간 브라우저 코드가 출력됩니다.
+2. 크롬에서 https://jasoseol.com/recruit 를 열고, 그 탭에서 1번 코드를 실행합니다 (Claude in Chrome 등). 관심 분야 공고만 추린 JSON이 탭 화면에 뜹니다.
+3. 그 글자를 `home-pc\jasoseol.json`으로 저장합니다 (GitHub에 올라가지 않음).
+4. `node --env-file=home-pc\home.env collector\run.js --force` → 자소설닷컴을 포함해 집 PC가 맡은 사이트를 수집해 올립니다.
+
+파일이 4일보다 오래되면 수집기가 쓰지 않고 '실패'로 표시합니다. 이 PC에서는 Claude 예약 작업이 평일 아침마다 1~4를 합니다.
+
 ## 무료 한도
 - Cloudflare KV 무료: 하루 쓰기 1,000회 / 읽기 100,000회. 수집 1회에 쓰기 약 12회, 찜·숨기기 1번에 1회라 충분합니다.
 - 공개 저장소의 GitHub Actions는 무료이며 시간 제한이 없습니다. 저장소에 60일간 변경이 없으면 예약 실행이 꺼지는데, 수집할 때마다 자동으로 다시 켜 둡니다.

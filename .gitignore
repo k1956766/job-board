@@ -4,3 +4,4 @@ node_modules/
 *.log
 home-pc/home.env
 home-pc/collect.log
+home-pc/jasoseol.json
