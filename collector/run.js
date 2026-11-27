@@ -53,7 +53,9 @@ async function main() {
       const prev = (await kvGet(key))?.items || {};
       let lastLog = 0;
       const progress = (text) => { if (Date.now() - lastLog > 60000) { lastLog = Date.now(); log(`${name}: ${text.replace(/^.*\((\d+\/\d+)\)$/, "$1")}`); } };
-      const found = (await RUNNERS[name]({ terms, match, progress })).filter((x) => !isExcluded(x.title, settings.exclude));
+      const raw = await RUNNERS[name]({ terms, match, progress });
+      const meta = raw.meta || {};   // 자소설닷컴: { dataAt: 받아 둔 자료 시점, warn }
+      const found = raw.filter((x) => !isExcluded(x.title, settings.exclude));
       const ts = Date.now();
       const items = {};
       for (const it of found) {
@@ -80,8 +82,9 @@ async function main() {
         await pause();
       }
       await kvPut(key, { at: ts, runner: RUNNER, items });
-      results[name] = { ok: true, n: found.length, checked, at: ts, runner: RUNNER };
-      log(`${name}: ${found.length}건, 본문 확인 ${checked}건 (${Math.round((Date.now() - t0) / 1000)}초)`);
+      results[name] = { ok: true, n: found.length, checked, at: ts, runner: RUNNER, ...meta };
+      log(`${name}: ${found.length}건, 본문 확인 ${checked}건 (${Math.round((Date.now() - t0) / 1000)}초)` +
+        (meta.dataAt ? ` · 자료 ${new Date(meta.dataAt).toISOString()}` : "") + (meta.warn ? ` · 주의: ${meta.warn}` : ""));
     } catch (e) {
       results[name] = { ok: false, n: 0, error: String(e?.message || e).slice(0, 200), at: Date.now(), runner: RUNNER };
       log(`${name}: 실패 - ${results[name].error}`);

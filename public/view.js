@@ -109,8 +109,15 @@ function renderHeader() {
     const v = m.statuses?.[k];
     if (!v) return `<span>${esc(k)} 대기</span>`;
     const where = v.runner === "home" ? " (집 PC)" : "";
-    return v.ok ? `<span title="${esc(fmt(v.at))}${where}">${esc(k)} ${v.n}건</span>`
-      : `<b class="err" title="${esc(v.error)}">${esc(k)} 실패${where}</b>`;
+    if (!v.ok) return `<b class="err" title="${esc(v.error)}">${esc(k)} 실패${where}</b>`;
+    // 받아 둔 자료(자소설닷컴)가 하루 넘게 지났거나 깨진 파일 대신 이전 파일을 썼으면 눈에 띄게
+    const age = v.dataAt ? (Date.now() - v.dataAt) / 86400000 : 0;
+    if (v.warn || age > 26 / 24) {
+      const tip = [`자료 ${fmt(v.dataAt || v.at)}`, v.warn].filter(Boolean).join(" · ");
+      const label = v.warn ? "이전 파일" : `자료 ${Math.max(1, Math.floor(age))}일 전`;
+      return `<b class="err" title="${esc(tip)}${where}">${esc(k)} ${v.n}건 (${label})</b>`;
+    }
+    return `<span title="${esc(fmt(v.at))}${where}">${esc(k)} ${v.n}건</span>`;
   }).join(" · ");
   const busy = !!m.collecting && Date.now() - (m.startedAt || 0) < 60 * 60000;
   const waiting = !busy && data.request?.at && data.request.at > (m.startedAt || 0) && Date.now() - data.request.at < 2 * 3600000;
